@@ -1,166 +1,70 @@
 ---
 name: oura-ring
 description: >-
-  Use when reading the user's Oura Ring health data (daily sleep, activity,
-  readiness, heart rate, SpO2) via the Oura Cloud API—especially for
-  health-assistant summaries or trend checks.
+  Read the user’s own Oura Ring data (daily sleep, readiness, activity, SpO2,
+  and heart-rate series) from Oura Cloud API v2 with bundled stdlib Python
+  scripts, including one-time OAuth2 setup and automatic token refresh. Use
+  when the user asks about Oura sleep, readiness, activity, heart rate, SpO2,
+  recovery, or trends over a date range.
+license: MIT
+compatibility: Requires Python 3.9+ (standard library only) and network access to api.ouraring.com and cloud.ouraring.com. One-time OAuth2 setup by the user.
 ---
-# Oura Ring API
+# Oura Ring
 
-Read the user's Oura Cloud data for health coaching. Health data is for the user only: never post it to Slack/email/X, never put tokens or raw payloads in shared logs, and never send credentials or full responses to other agents unless that agent is the user's health assistant and needs the summary.
+## Privacy
 
-Docs: [Authentication](https://cloud.ouraring.com/docs/authentication) · API base `https://api.ouraring.com` · Interactive [v2 docs](https://cloud.ouraring.com/v2/docs)
+Health data is for the user only. Never post it to other people, channels, or shared logs. Never echo access tokens, refresh tokens, client secrets, or raw API payloads. Do not invent tokens, scrape cookies, or ask for a personal access token. Summarize only the data needed to answer the user's request.
 
-## Credentials (never print secrets)
+## Credentials
 
-**Auth model (as of Dec 2025):** Personal Access Tokens are **deprecated and no longer available for new use**. New integrations must use **OAuth2 authorization code** (PKCE recommended). `OURA_ACCESS_TOKEN` here means an **OAuth2 access token**, not a portal PAT.
+Personal access tokens were deprecated in December 2025 and are no longer available. Use OAuth2. Credentials resolve per key: environment variables first, then `$OURA_ENV_FILE`, else `${XDG_CONFIG_HOME:-~/.config}/oura/oura.env`. Supported values are `OURA_ACCESS_TOKEN`, `OURA_REFRESH_TOKEN`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, optional `OURA_REDIRECT_URI`, and optional `OURA_SCOPES` (default `daily heartrate spo2`). The env file must have mode 600; setup creates its parent directory with mode 700. Status output masks values.
 
-OAuth endpoints:
-- Authorize: `https://cloud.ouraring.com/oauth/authorize` (alt: `https://developer.ouraring.com/authorize`)
-- Token: `https://api.ouraring.com/oauth/token`
-- Data calls: `Authorization: Bearer <access_token>`
+If the access token is missing, stop and tell the user to follow Setup in `README.md`, then run `python3 scripts/oura_auth.py authorize`. On a 401, refresh once when refresh credentials are configured; immediately persist both returned tokens because refresh tokens are single-use. Retry the data request once.
 
-Resolve credentials in this order; never echo token values in chat, memory, skill files, or agent messages.
+## Fetch data
 
-1. **Required for data calls:** `OURA_ACCESS_TOKEN` from `process.env.OURA_ACCESS_TOKEN` (bot secret / secret-request).
-2. **Shared box file (preferred when env is empty):** if the access token is still missing, load `/home/box/.secrets/oura.env` (mode `600`) with `set -a && source /home/box/.secrets/oura.env && set +a` (or equivalent in Python). That file should hold `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_ACCESS_TOKEN`, and `OURA_REFRESH_TOKEN`. Do not copy its contents into chat or logs.
-3. **Refresh (required for longevity):** `OURA_REFRESH_TOKEN`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET` from the same env or file. Without these, a 401 means full re-OAuth.
+Run script paths relative to the skill folder. Oura's authentication docs describe the `heartrate` scope as "time series heart rate for Gen 3 users".
 
-**Missing token:** stop. Tell the coordinating agent (do not message the user unless they are in this chat): `OURA_ACCESS_TOKEN is not set. Ask the chief of staff to re-run Oura OAuth2 and restore /home/box/.secrets/oura.env.` Do not invent sample tokens or scrape cookies. Do not tell the user to create a Personal Access Token.
+Primary path:
 
-**After refresh:** write the new `access_token` and single-use `refresh_token` back into `/home/box/.secrets/oura.env` (and bot secrets if those are also configured). Never leave the new refresh token only in shell history. Skipping persistence invalidates the next refresh.
-
-Scopes needed for this skill: `daily`, `heartrate`, `spo2` (API scope name may appear as `spo2` / `spo2Daily`). Prefer the minimum scopes.
-
-**Not this skill:** aggregator APIs (e.g. Open Wearables) may use a different header such as `X-Open-Wearables-API-Key`. This skill talks only to `api.ouraring.com` with Bearer.
-
-## Auth header
-
-Every data call:
-
-```http
-Authorization: Bearer <OURA_ACCESS_TOKEN>
+```sh
+python3 scripts/oura_fetch.py daily_sleep --days 7 --summary
+python3 scripts/oura_fetch.py all --start 2026-10-24 --end 2026-10-31 --summary
+python3 scripts/oura_fetch.py heartrate --days 3 --tz America/Los_Angeles --json
 ```
 
-## Refresh access token
+Collections: `daily_sleep`, `daily_activity`, `daily_readiness`, `daily_spo2`, `heartrate`, or `all`. Default date range is the last 7 calendar days in the user's local timezone. Override with `--tz` using an IANA timezone. Daily endpoints use `start_date`, `end_date`, and pagination `next_token`; heart rate uses `start_datetime`, `end_datetime`, and `next_token`. All pages are followed.
 
-When a data call returns **401**, and refresh secrets exist, refresh once then retry the data call once.
+| Collection | API path |
+|---|---|
+| Sleep | `/v2/usercollection/daily_sleep` |
+| Activity | `/v2/usercollection/daily_activity` |
+| Readiness | `/v2/usercollection/daily_readiness` |
+| SpO2 | `/v2/usercollection/daily_spo2` |
+| Heart rate | `/v2/usercollection/heartrate` |
 
-`POST https://api.ouraring.com/oauth/token`  
-`Content-Type: application/x-www-form-urlencoded`
+## Errors
 
-Body: `grant_type=refresh_token&refresh_token=$OURA_REFRESH_TOKEN&client_id=$OURA_CLIENT_ID&client_secret=$OURA_CLIENT_SECRET`  
-(or HTTP Basic with client_id:client_secret instead of those two form fields).
+| Status | Meaning and response |
+|---|---|
+| Missing token | Stop; direct the user to the README setup and authorize command. |
+| 400 / 422 | 400 = query parameter validation error (docs); 422 = validation error (OpenAPI). |
+| 401 | Refresh once if configured; otherwise re-authorize. |
+| 403 | Check granted scopes and Oura membership. |
+| 429 | Honor `Retry-After`; retry once, then stop. |
 
-Response includes new `access_token`, `expires_in`, and a **single-use** `refresh_token`. Persist them as above. If refresh secrets are missing or refresh fails, report that re-authorization is required—do not loop.
+## Output guidance
 
-## Endpoints this skill covers
+Summarize scores and trends, cite the date range, and avoid full JSON unless requested. Health data is not medical advice. Do not diagnose or advise medication; suggest a clinician for concerning values.
 
-Date params are `YYYY-MM-DD`. Heart rate uses datetimes (ISO-8601).
+## Minimal curl fallback
 
-| Need | Method | Path | Query |
-|------|--------|------|-------|
-| Daily sleep scores | GET | `/v2/usercollection/daily_sleep` | `start_date`, `end_date`, optional `next_token` |
-| Daily activity | GET | `/v2/usercollection/daily_activity` | same |
-| Daily readiness | GET | `/v2/usercollection/daily_readiness` | same |
-| Daily SpO2 (Gen3+) | GET | `/v2/usercollection/daily_spo2` | same |
-| Heart rate series | GET | `/v2/usercollection/heartrate` | `start_datetime`, `end_datetime`, optional `next_token` |
+Use the configurable env file path and keep its permissions private:
 
-Follow `next_token` until null when paging. Default a health check to the last 7 days unless the ask names another range. Prefer Asia/Shanghai calendar dates when the user lives there.
-
-Useful related paths (optional, same auth): `/v2/usercollection/sleep` (detailed sleep periods), `/v2/usercollection/personal_info`.
-
-## curl examples
-
-Load credentials first; never paste token values into the command from chat.
-
-```bash
-if [ -z "${OURA_ACCESS_TOKEN:-}" ] && [ -f /home/box/.secrets/oura.env ]; then
-  set -a && . /home/box/.secrets/oura.env && set +a
-fi
-: "${OURA_ACCESS_TOKEN:?OURA_ACCESS_TOKEN is not set}"
-START=$(date -d '7 days ago' +%F 2>/dev/null || date -v-7d +%F)
-END=$(date +%F)
-
-curl -sS -H "Authorization: Bearer ${OURA_ACCESS_TOKEN}" \
-  "https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${START}&end_date=${END}"
+```sh
+ENV_FILE="${OURA_ENV_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/oura/oura.env}"
+set -a; . "$ENV_FILE"; set +a
+curl -sS -H "User-Agent: oura-ring-skill/0.2" \
+  -H "Authorization: Bearer ${OURA_ACCESS_TOKEN}" \
+  "https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=2026-10-25&end_date=2026-10-31"
 ```
-
-Same pattern for `daily_activity`, `daily_readiness`, `daily_spo2`, and `heartrate` (`start_datetime` / `end_datetime`).
-
-Refresh (only when all four refresh-related vars are set); **persist the new refresh_token**:
-
-```bash
-curl -sS -X POST "https://api.ouraring.com/oauth/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=refresh_token&refresh_token=${OURA_REFRESH_TOKEN}&client_id=${OURA_CLIENT_ID}&client_secret=${OURA_CLIENT_SECRET}"
-```
-
-## Python example
-
-```python
-import os, sys, urllib.parse, urllib.request, json
-
-def load_oura_env(path="/home/box/.secrets/oura.env"):
-    if os.environ.get("OURA_ACCESS_TOKEN"):
-        return
-    if not os.path.isfile(path):
-        return
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k, v)
-
-def token():
-    load_oura_env()
-    t = os.environ.get("OURA_ACCESS_TOKEN")
-    if not t:
-        sys.exit("OURA_ACCESS_TOKEN is not set. Re-run Oura OAuth2; restore /home/box/.secrets/oura.env or the bot secret.")
-    return t
-
-def get(path, params):
-    q = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
-    req = urllib.request.Request(
-        f"https://api.ouraring.com{path}?{q}",
-        headers={"Authorization": f"Bearer {token()}"},
-    )
-    with urllib.request.urlopen(req) as r:
-        return json.load(r)
-
-def refresh_if_configured():
-    load_oura_env()
-    need = ["OURA_REFRESH_TOKEN", "OURA_CLIENT_ID", "OURA_CLIENT_SECRET"]
-    if not all(os.environ.get(k) for k in need):
-        return None
-    body = urllib.parse.urlencode({
-        "grant_type": "refresh_token",
-        "refresh_token": os.environ["OURA_REFRESH_TOKEN"],
-        "client_id": os.environ["OURA_CLIENT_ID"],
-        "client_secret": os.environ["OURA_CLIENT_SECRET"],
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.ouraring.com/oauth/token",
-        data=body,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req) as r:
-        return json.load(r)  # persist access_token + refresh_token back to oura.env
-```
-
-## Error handling
-
-| HTTP | Meaning | Action |
-|------|---------|--------|
-| missing env | No token | Clear setup message; stop; ask for OAuth2 re-auth (not PAT) |
-| 401 | Expired/revoked/malformed token | Refresh once if configured; else ask for re-auth |
-| 403 | Subscription / access forbidden | Report; do not retry blindly |
-| 422 | Bad params | Fix dates/datetimes |
-| 429 | Rate limit | Back off and retry later |
-
-## Output for health use
-
-Summarize scores and trends for the user (sleep score, readiness, activity, resting HR / HR series highlights, SpO2 average). Cite the date range. Do not dump full JSON unless asked. This skill does not diagnose or prescribe medication.
