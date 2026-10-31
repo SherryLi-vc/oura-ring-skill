@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- Reposition both READMEs and replace Quick start with concise install and authorization steps.
+- Remove the duplicate webhooks sentence from the Chinese README.
+- Clarify in SKILL.md that the env file is written with mode 600 and should remain private.
+- Treat an empty `XDG_CONFIG_HOME` as unset when resolving the default credentials path.
 - Replace environment-specific paths and wording with generic skill paths.
 - Add OAuth2 authorization, exchange, refresh, and status helper scripts.
 - Add paginated data fetcher with summaries, timezone support, and dry-run mode.
