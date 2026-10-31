@@ -1,2 +1,6 @@
 .env
 *.env
+oura.env
+*.pending.json
+__pycache__/
+.oura-*
