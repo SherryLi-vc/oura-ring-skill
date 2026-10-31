@@ -4,25 +4,34 @@
 
 [English](./README.md) · **简体中文**
 
-<!-- POSITIONING-PLACEHOLDER: tagline + opening paragraph to be written by the repo-description editor. Do not edit by hand. -->
-用于通过 OAuth2 配置 Oura Ring 数据访问并获取个人健康摘要的技能。
+> 一个 Agent Skill：让你的 AI 助手通过 Oura 官方 Cloud API v2 读取**你本人**的 Oura Ring 数据，并且只汇总给你本人看。
 
-本项目为非官方社区 skill，并非 Oura 官方产品。Oura 为其所有者的商标。
+**是什么：** 一份可移植的 `SKILL.md`（Agent Skills 格式），附 Python 标准库脚本，用于一次性完成 OAuth2 授权，并读取每日睡眠、活动、准备度、血氧（SpO2）和心率序列。
 
-> 通过 Oura Cloud API 读取 Oura Ring 数据。
+**给谁用：** 戴 Oura Ring、想让 AI 助手按日期范围汇总自己评分和趋势的人。
 
-使用此技能授权访问 Oura 账户，并获取睡眠、准备度、活动、心率和血氧数据。
+**不是什么：** 不是医疗建议，也不是 Oura 官方产品。本项目为非官方社区 skill，Oura 为其所有者的商标。仓库里不含任何令牌或密钥。
 
-- **OAuth2 配置**：通过 Oura 和 PKCE 完成授权，并在本地安全保存凭据。
-- **数据获取**：分页读取每日数据和心率数据。
-- **简洁摘要**：查看指定日期范围内的每日评分和趋势。
-- **隐私优先**：健康数据和凭据保留在用户设备上。
+- **OAuth2 + PKCE**：授权码流程并校验 state。Oura 已于 2025 年 12 月停用个人访问令牌。
+- **自动续期**：遇到 401 自动刷新一次，并把新的一次性刷新令牌原子回写到权限为 600 的文件。
+- **凭据位置自定**：先读环境变量，其次读 `OURA_ENV_FILE`，默认读 `~/.config/oura/oura.env`。
+- **五类数据，自动翻页**：`daily_sleep`、`daily_activity`、`daily_readiness`、`daily_spo2`、`heartrate`（或 `all`），按 `next_token` 读完所有页。
+- **本地时区默认值**：默认取你所在时区最近 7 个日历日，可用 `--tz` 覆盖；支持 `--summary`、`--json`、`--dry-run`。
+- **轻量通用**：标准 `SKILL.md`；只需 Python 3.9+ 标准库。
 
 ## 快速开始
 
-1. 安装到文件夹 `oura-ring`。
-2. 将 Client ID 和 Client Secret 写入 `~/.config/oura/oura.env`，或设置 `OURA_ENV_FILE` 指向该文件。
-3. 进入技能文件夹（例如 `cd ~/.agents/skills/oura-ring`），运行 `python3 scripts/oura_auth.py authorize` 完成授权，再运行 `python3 scripts/oura_fetch.py daily_sleep --days 3 --summary` 验证。
+**1. 安装**到通用用户级目录（其他宿主见[安装](#安装)）：
+
+    git clone https://github.com/SherryLi-vc/oura-ring-skill.git ~/.agents/skills/oura-ring
+
+**2. 注册 Oura 应用并创建凭据文件**：见[一次性 OAuth2 配置](#一次性-oauth2-配置)第 1–3 步。
+
+**3. 授权并验证：**
+
+    cd ~/.agents/skills/oura-ring
+    python3 scripts/oura_auth.py authorize
+    python3 scripts/oura_fetch.py daily_sleep --days 3 --summary
 
 ## 安装
 
@@ -87,7 +96,6 @@ gemini skills install https://github.com/SherryLi-vc/oura-ring-skill.git
    ```
 
 配置了刷新凭据时，遇到 401 后会自动刷新访问令牌。Oura 刷新令牌只能使用一次；脚本会立即保存新刷新令牌和访问令牌。Oura 也提供用于持续更新的 webhooks；本技能按需轮询，无需使用它们。
-Oura 也提供用于持续更新的 webhooks；本技能按需轮询，无需使用它们。
 
 ## 获取数据
 
@@ -129,6 +137,3 @@ python3 scripts/oura_fetch.py heartrate --days 3 --tz America/Los_Angeles --json
 ## 许可证
 
 MIT © 2026 SherryLi-vc
-
-## 仓库简介 / Topics（占位）
-<!-- ABOUT-TOPICS-PLACEHOLDER: to be filled by the repo-description editor -->
