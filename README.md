@@ -4,25 +4,34 @@
 
 **English** · [简体中文](./README.zh-CN.md)
 
-<!-- POSITIONING-PLACEHOLDER: tagline + opening paragraph to be written by the repo-description editor. Do not edit by hand. -->
-A skill for setting up OAuth2 access to Oura Ring data and fetching personal health summaries.
+> An Agent Skill that lets your AI agent read **your own** Oura Ring data from the official Oura Cloud API v2 and summarize it for you alone.
 
-This is an unofficial community skill, not an official Oura product. Oura is a trademark of its owner.
+**What it is:** a portable `SKILL.md` (Agent Skills format) plus standard-library Python scripts for one-time OAuth2 setup and for fetching daily sleep, activity, readiness, SpO2 and heart-rate series.
 
-> Read your Oura Ring data through the Oura Cloud API.
+**Who it's for:** Oura Ring owners who want their AI agent to summarize their own scores and trends over a date range.
 
-Use this skill to authorize access to your Oura account and fetch sleep, readiness, activity, heart rate, and SpO2 records.
+**What it isn't:** not medical advice, and not an official Oura product. This is an unofficial community skill; Oura is a trademark of its owner. No tokens or keys ship in this repo.
 
-- **OAuth2 setup**: Authorize through Oura with PKCE and securely save credentials locally.
-- **Data fetching**: Retrieve daily collections and heart rate with pagination.
-- **Compact summaries**: Review per-day scores and trends for a selected range.
-- **Privacy first**: Keep health data and credentials on the user's machine.
+- **OAuth2 with PKCE**: authorization-code flow with state validation. Oura retired personal access tokens in December 2025.
+- **Refresh handled**: refreshes once on a 401 and writes the new single-use refresh token back atomically to a mode-600 file.
+- **Your credentials, your path**: environment variables first, then `OURA_ENV_FILE`, else `~/.config/oura/oura.env`.
+- **Five collections, every page**: `daily_sleep`, `daily_activity`, `daily_readiness`, `daily_spo2` and `heartrate` (or `all`), following `next_token`.
+- **Local-time defaults**: the last 7 calendar days in your time zone, `--tz` to override, plus `--summary`, `--json` and `--dry-run`.
+- **Portable and light**: plain `SKILL.md`; Python 3.9+ standard library only.
 
 ## Quick start
 
-1. Install into a folder named `oura-ring`.
-2. Put your Client ID and Client Secret in `~/.config/oura/oura.env`, or point `OURA_ENV_FILE` to that file.
-3. From the skill folder (e.g. `cd ~/.agents/skills/oura-ring`), run `python3 scripts/oura_auth.py authorize` to authorize, then `python3 scripts/oura_fetch.py daily_sleep --days 3 --summary` to verify.
+**1. Install** to the shared user-level path (other hosts: see [Install](#install)):
+
+    git clone https://github.com/SherryLi-vc/oura-ring-skill.git ~/.agents/skills/oura-ring
+
+**2. Register an Oura app and create the credentials file**: see [Setup](#setup-one-time-oauth2), steps 1–3.
+
+**3. Authorize, then verify:**
+
+    cd ~/.agents/skills/oura-ring
+    python3 scripts/oura_auth.py authorize
+    python3 scripts/oura_fetch.py daily_sleep --days 3 --summary
 
 ## Install
 
@@ -129,6 +138,3 @@ This skill summarizes Oura measurements and does not diagnose conditions or reco
 ## License
 
 MIT © 2026 SherryLi-vc
-
-## Repository About / Topics (placeholder)
-<!-- ABOUT-TOPICS-PLACEHOLDER: to be filled by the repo-description editor -->

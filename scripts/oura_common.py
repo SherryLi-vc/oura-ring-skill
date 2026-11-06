@@ -17,7 +17,7 @@ KEYS = ("OURA_ACCESS_TOKEN", "OURA_REFRESH_TOKEN", "OURA_CLIENT_ID", "OURA_CLIEN
 
 
 def env_path():
-    return Path(os.environ.get("OURA_ENV_FILE") or Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser() / "oura" / "oura.env").expanduser()
+    return Path(os.environ.get("OURA_ENV_FILE") or Path((os.environ.get("XDG_CONFIG_HOME") or "~/.config")).expanduser() / "oura" / "oura.env").expanduser()
 
 
 def parse_env_file(path=None):

@@ -55,6 +55,15 @@ class SkillTests(unittest.TestCase):
         self.assertEqual(q["redirect_uri"], [redirect]); self.assertEqual(q["state"], ["state"])
         self.assertEqual(q["code_challenge_method"], ["S256"])
 
+    def test_env_path_xdg_config_home(self):
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": ""}, clear=True):
+            path = oura_common.env_path()
+            self.assertEqual(path, Path("~/.config/oura/oura.env").expanduser())
+            self.assertTrue(path.is_absolute())
+        with tempfile.TemporaryDirectory() as config_dir:
+            with patch.dict(os.environ, {"XDG_CONFIG_HOME": config_dir}, clear=True):
+                self.assertEqual(oura_common.env_path(), Path(config_dir) / "oura" / "oura.env")
+
     def test_env_precedence_and_file(self):
         self.path.write_text("OURA_ACCESS_TOKEN=file\nOURA_CLIENT_ID=file-id\n")
         os.chmod(self.path, 0o600); os.environ["OURA_ACCESS_TOKEN"] = "env"

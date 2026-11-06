@@ -17,7 +17,7 @@ Health data is for the user only. Never post it to other people, channels, or sh
 
 ## Credentials
 
-Personal access tokens were deprecated in December 2025 and are no longer available. Use OAuth2. Credentials resolve per key: environment variables first, then `$OURA_ENV_FILE`, else `${XDG_CONFIG_HOME:-~/.config}/oura/oura.env`. Supported values are `OURA_ACCESS_TOKEN`, `OURA_REFRESH_TOKEN`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, optional `OURA_REDIRECT_URI`, and optional `OURA_SCOPES` (default `daily heartrate spo2`). The env file must have mode 600; setup creates its parent directory with mode 700. Status output masks values.
+Personal access tokens were deprecated in December 2025 and are no longer available. Use OAuth2. Credentials resolve per key: environment variables first, then `$OURA_ENV_FILE`, else `${XDG_CONFIG_HOME:-~/.config}/oura/oura.env`. Supported values are `OURA_ACCESS_TOKEN`, `OURA_REFRESH_TOKEN`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, optional `OURA_REDIRECT_URI`, and optional `OURA_SCOPES` (default `daily heartrate spo2`). The env file is written with mode 600; keep it private (`chmod 600`). Setup creates its parent directory with mode 700. Status output masks values.
 
 If the access token is missing, stop and tell the user to follow Setup in `README.md`, then run `python3 scripts/oura_auth.py authorize`. On a 401, refresh once when refresh credentials are configured; immediately persist both returned tokens because refresh tokens are single-use. Retry the data request once.
 
